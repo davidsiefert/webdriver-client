@@ -45,10 +45,20 @@ impl Session {
         Ok(session)
     }
 
-    pub fn delete(&self) -> Result<bool> {
-        let response = self.client.delete(format!("http://localhost:4444/session/{}", self.id).as_str()).send()?.text()?;
-        println!("delete response: {}", response);
+    pub fn delete(self) -> Result<bool> {
+        self.client.delete(format!("http://localhost:4444/session/{}", self.id).as_str()).send()?.text()?;
+        // response: {"value": {}}
         Ok(true)
+    }
+
+    pub fn navigate_to(self, url: &str) -> Result<Session> {
+        let mut body: HashMap<&str, &str> = HashMap::new();
+        body.insert("url", url);
+        
+        let response = self.client.post(format!("http://localhost:4444/session/{}/url", self.id).as_str()).json(&body).send()?.text()?;
+        println!("navigate_to: {}", response);
+        
+        Ok(self)
     }
 }
 
@@ -75,15 +85,15 @@ mod test {
     use super::*;
     
     #[test]
-    fn new_session() {
+    fn end_to_end() {
         assert_eq!(get_status().unwrap(), true);
 
-        let session = Session::new();
-        match session {
-            Ok(session) => {
-                assert!(session.id.len() > 0);
-                session.delete();
-            },
+        let result = Session::new()
+            .and_then(|session| session.navigate_to("https://www.google.com/"))
+            .and_then(|session| session.delete());
+
+        match result {
+            Ok(deleted) => assert!(deleted, "did not cleanup session"),
             Err(e) => assert!(false, "did not create session {}", e)
         }
     }
