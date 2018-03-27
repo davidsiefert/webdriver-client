@@ -31,6 +31,11 @@ struct NewSession {
     value: NewSessionValue,
 }
 
+#[derive(Deserialize)]
+struct StringValue {
+    value: String,
+}
+
 impl Session {
     pub fn new() -> Result<Session> {
         let client = reqwest::Client::new();
@@ -55,10 +60,15 @@ impl Session {
         let mut body: HashMap<&str, &str> = HashMap::new();
         body.insert("url", url);
         
-        let response = self.client.post(format!("http://localhost:4444/session/{}/url", self.id).as_str()).json(&body).send()?.text()?;
-        println!("navigate_to: {}", response);
+        self.client.post(format!("http://localhost:4444/session/{}/url", self.id).as_str()).json(&body).send()?.text()?;
+        // response: {"value": {}}
         
         Ok(self)
+    }
+
+    pub fn get_title(&self) -> Result<String> {
+        let response: StringValue = self.client.get(format!("http://localhost:4444/session/{}/title", self.id).as_str()).send()?.json()?;
+        Ok(response.value)
     }
 }
 
@@ -75,9 +85,6 @@ struct Status {
 pub fn get_status() -> Result<bool> {
     let status: Status = reqwest::get("http://localhost:4444/status")?.json()?;
     Ok(status.value.ready)
-    
-//        .and_then(|response| response.json())
-//        .map(|status: Status| status.value.ready)
 }
 
 #[cfg(test)]
@@ -86,15 +93,23 @@ mod test {
     
     #[test]
     fn end_to_end() {
-        assert_eq!(get_status().unwrap(), true);
+       assert_eq!(get_status().unwrap(), true);
 
-        let result = Session::new()
+       let result = Session::new()
             .and_then(|session| session.navigate_to("https://www.google.com/"))
+            .and_then(|session| {
+                let title = session.get_title()?;
+                if title != "Google" {
+                    Err(format!(r#"incorrect title "{}", expected "Google"."#, title).as_str().into()) // TODO this is horrible, probably should avoid monad for now and rewrite this in a way that uses common assert patterns...
+                } else {
+                    Ok(session)
+                }
+            })
             .and_then(|session| session.delete());
-
+        
         match result {
             Ok(deleted) => assert!(deleted, "did not cleanup session"),
-            Err(e) => assert!(false, "did not create session {}", e)
+            Err(e) => assert!(false, "end to end test failure: {}", e)
         }
     }
 }
