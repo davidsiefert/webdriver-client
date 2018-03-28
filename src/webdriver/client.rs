@@ -36,7 +36,22 @@ struct StringValue {
     value: String,
 }
 
+impl Drop for Session {
+    fn drop(&mut self) {
+        let url = format!("http://localhost:4444/session/{}", self.id);
+        let _ = self.client.delete(url.as_str()).send();
+        // response: {"value": {}}
+    }
+}
+
 impl Session {
+    pub fn run<T>(program: fn(&Session) -> Result<T>) -> Result<T> {
+        Session::new()
+            .and_then(|session| {
+                program(&session)
+            })
+    }
+    
     pub fn new() -> Result<Session> {
         let client = reqwest::Client::new();
         let body: HashMap<String, String> = HashMap::new();
@@ -50,20 +65,14 @@ impl Session {
         Ok(session)
     }
 
-    pub fn delete(self) -> Result<bool> {
-        self.client.delete(format!("http://localhost:4444/session/{}", self.id).as_str()).send()?.text()?;
-        // response: {"value": {}}
-        Ok(true)
-    }
-
-    pub fn navigate_to(self, url: &str) -> Result<Session> {
+    pub fn navigate_to(&self, url: &str) -> Result<bool> {
         let mut body: HashMap<&str, &str> = HashMap::new();
         body.insert("url", url);
         
         self.client.post(format!("http://localhost:4444/session/{}/url", self.id).as_str()).json(&body).send()?.text()?;
         // response: {"value": {}}
         
-        Ok(self)
+        Ok(true)
     }
 
     pub fn get_title(&self) -> Result<String> {
@@ -92,24 +101,21 @@ mod test {
     use super::*;
     
     #[test]
-    fn end_to_end() {
-       assert_eq!(get_status().unwrap(), true);
+    fn run_closure_end_to_end_test() {
+        let status = get_status()
+            .expect("webdriver server status check");
+        assert!(status, "webdriver not ready");
 
-       let result = Session::new()
-            .and_then(|session| session.navigate_to("https://www.google.com/"))
-            .and_then(|session| {
-                let title = session.get_title()?;
-                if title != "Google" {
-                    Err(format!(r#"incorrect title "{}", expected "Google"."#, title).as_str().into()) // TODO this is horrible, probably should avoid monad for now and rewrite this in a way that uses common assert patterns...
-                } else {
-                    Ok(session)
-                }
-            })
-            .and_then(|session| session.delete());
-        
-        match result {
-            Ok(deleted) => assert!(deleted, "did not cleanup session"),
-            Err(e) => assert!(false, "end to end test failure: {}", e)
-        }
+        let result = Session::run(|session| {
+            session.navigate_to("https://www.google.com")?;
+            let title = session.get_title()?;
+            if title != "Google" {
+                Err(format!("incorrect page title: {}", title).as_str().into())
+            } else {
+                Ok(())
+            }
+        });
+
+        assert!(result.is_ok(), "browsing failed {}", result.err().unwrap());
     }
 }
