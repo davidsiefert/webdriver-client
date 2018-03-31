@@ -18,6 +18,10 @@ pub struct Session {
     client: Client,
 }
 
+pub struct Element {
+    element_id: String,
+}
+
 use std::collections::HashMap;
 
 impl Drop for Session {
@@ -53,8 +57,9 @@ impl Session {
     pub fn navigate_to(&self, url: &str) -> Result<bool> {
         let mut body: HashMap<&str, &str> = HashMap::new();
         body.insert("url", url);
-        
-        self.client.post(format!("http://localhost:4444/session/{}/url", self.id).as_str()).json(&body).send()?.text()?;
+
+        let path = format!("http://localhost:4444/session/{}/url", self.id);
+        self.client.post(path.as_str()).json(&body).send()?.text()?;
         // response: {"value": {}}
         
         Ok(true)
@@ -64,6 +69,22 @@ impl Session {
         let response: Value = self.client.get(format!("http://localhost:4444/session/{}/title", self.id).as_str()).send()?.json()?;
         response["value"].as_str()
             .map(|t| t.to_string())
+            .ok_or(format!("invalid response: {:?}", response).as_str().into())
+    }
+    
+    pub fn find_element_by_css(&self, selector: &str) -> Result<Element> {
+        let mut body: HashMap<&str, &str> = HashMap::new();
+        body.insert("using", "css selector");
+        body.insert("value", selector);
+        
+        let path = format!("http://localhost:4444/session/{}/element", self.id);
+        let response: Value = self.client.post(path.as_str()).json(&body).send()?.json()?;
+        response["value"]
+            .as_object()
+            .and_then(|m| m.keys().next())
+            .map(|element_id| Element{
+                element_id: element_id.to_string()
+            })
             .ok_or(format!("invalid response: {:?}", response).as_str().into())
     }
 }
@@ -87,11 +108,12 @@ mod test {
         let result = Session::run(|session| {
             session.navigate_to("https://www.google.com")?;
             let title = session.get_title()?;
+
             if title != "Google" {
-                Err(format!("incorrect page title: {}", title).as_str().into())
-            } else {
-                Ok(())
+                return Err(format!("incorrect page title: {}", title).as_str().into())
             }
+            
+            session.find_element_by_css("[name=q]")
         });
 
         assert!(result.is_ok(), "browsing failed {}", result.err().unwrap());
