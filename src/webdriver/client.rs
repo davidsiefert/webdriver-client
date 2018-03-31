@@ -1,5 +1,6 @@
 
-use reqwest;
+use reqwest::Client;
+use reqwest::get;
 
 mod errors {
     error_chain! {
@@ -13,7 +14,7 @@ use self::errors::*;
 
 pub struct Session {
     id: String,
-    client: reqwest::Client,
+    client: Client,
 }
 
 use std::collections::HashMap;
@@ -53,7 +54,7 @@ impl Session {
     }
     
     pub fn new() -> Result<Session> {
-        let client = reqwest::Client::new();
+        let client = Client::new();
         let body: HashMap<String, String> = HashMap::new();
         
         let response: NewSession = client.post("http://localhost:4444/session").json(&body).send()?.json()?;
@@ -92,7 +93,7 @@ struct Status {
 }
 
 pub fn get_status() -> Result<bool> {
-    let status: Status = reqwest::get("http://localhost:4444/status")?.json()?;
+    let status: Status = get("http://localhost:4444/status")?.json()?;
     Ok(status.value.ready)
 }
 
