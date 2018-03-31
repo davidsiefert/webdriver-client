@@ -23,17 +23,6 @@ use std::collections::HashMap;
 // session creation response: {"value": {"sessionId":"9f9c6fdb-ea4a-41fd-84a3-fd54b9b1c58b","capabilities":{"acceptInsecureCerts":false,"browserName":"firefox","browserVersion":"59.0.1","moz:accessibilityChecks":false,"moz:headless":false,"moz:processID":29954,"moz:profile":"/tmp/rust_mozprofile.oH01UKhZUOAL","moz:useNonSpecCompliantPointerOrigin":false,"moz:webdriverClick":true,"pageLoadStrategy":"normal","platformName":"linux","platformVersion":"4.4.0-89-generic","rotatable":false,"timeouts":{"implicit":0,"pageLoad":300000,"script":30000}}}}
 
 #[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct NewSessionValue {
-    session_id: String,
-}
-
-#[derive(Deserialize)]
-struct NewSession {
-    value: NewSessionValue,
-}
-
-#[derive(Deserialize)]
 struct StringValue {
     value: String,
 }
@@ -58,13 +47,13 @@ impl Session {
         let client = Client::new();
         let body: HashMap<String, String> = HashMap::new();
         
-        let response: NewSession = client.post("http://localhost:4444/session").json(&body).send()?.json()?;
-        let session = Session{
-            client: client,
-            id: response.value.session_id,
-        };
-
-        Ok(session)
+        let response: Value = client.post("http://localhost:4444/session").json(&body).send()?.json()?;
+        response["value"]["sessionId"].as_str()
+            .ok_or(format!("invalid response: {:?}", response).as_str().into())
+            .map(|session_id| Session{
+              client: client,
+              id: session_id.to_string(),
+            })
     }
 
     pub fn navigate_to(&self, url: &str) -> Result<bool> {
