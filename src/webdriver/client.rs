@@ -20,13 +20,6 @@ pub struct Session {
 
 use std::collections::HashMap;
 
-// session creation response: {"value": {"sessionId":"9f9c6fdb-ea4a-41fd-84a3-fd54b9b1c58b","capabilities":{"acceptInsecureCerts":false,"browserName":"firefox","browserVersion":"59.0.1","moz:accessibilityChecks":false,"moz:headless":false,"moz:processID":29954,"moz:profile":"/tmp/rust_mozprofile.oH01UKhZUOAL","moz:useNonSpecCompliantPointerOrigin":false,"moz:webdriverClick":true,"pageLoadStrategy":"normal","platformName":"linux","platformVersion":"4.4.0-89-generic","rotatable":false,"timeouts":{"implicit":0,"pageLoad":300000,"script":30000}}}}
-
-#[derive(Deserialize)]
-struct StringValue {
-    value: String,
-}
-
 impl Drop for Session {
     fn drop(&mut self) {
         let url = format!("http://localhost:4444/session/{}", self.id);
@@ -47,6 +40,7 @@ impl Session {
         let client = Client::new();
         let body: HashMap<String, String> = HashMap::new();
         
+        // session creation response: {"value": {"sessionId":"9f9c6fdb-ea4a-41fd-84a3-fd54b9b1c58b","capabilities":{"acceptInsecureCerts":false,"browserName":"firefox","browserVersion":"59.0.1","moz:accessibilityChecks":false,"moz:headless":false,"moz:processID":29954,"moz:profile":"/tmp/rust_mozprofile.oH01UKhZUOAL","moz:useNonSpecCompliantPointerOrigin":false,"moz:webdriverClick":true,"pageLoadStrategy":"normal","platformName":"linux","platformVersion":"4.4.0-89-generic","rotatable":false,"timeouts":{"implicit":0,"pageLoad":300000,"script":30000}}}}
         let response: Value = client.post("http://localhost:4444/session").json(&body).send()?.json()?;
         response["value"]["sessionId"].as_str()
             .ok_or(format!("invalid response: {:?}", response).as_str().into())
@@ -67,8 +61,10 @@ impl Session {
     }
 
     pub fn get_title(&self) -> Result<String> {
-        let response: StringValue = self.client.get(format!("http://localhost:4444/session/{}/title", self.id).as_str()).send()?.json()?;
-        Ok(response.value)
+        let response: Value = self.client.get(format!("http://localhost:4444/session/{}/title", self.id).as_str()).send()?.json()?;
+        response["value"].as_str()
+            .map(|t| t.to_string())
+            .ok_or(format!("invalid response: {:?}", response).as_str().into())
     }
 }
 
