@@ -1,6 +1,7 @@
 
 use reqwest::Client;
 use reqwest::get;
+use serde_json::Value;
 
 mod errors {
     error_chain! {
@@ -82,19 +83,10 @@ impl Session {
     }
 }
 
-#[derive(Deserialize)]
-struct Value {
-    ready: bool,
-}
-
-#[derive(Deserialize)]
-struct Status {
-    value: Value, 
-}
-
 pub fn get_status() -> Result<bool> {
-    let status: Status = get("http://localhost:4444/status")?.json()?;
-    Ok(status.value.ready)
+    let body: Value = get("http://localhost:4444/status")?.json()?;
+    body["value"]["ready"].as_bool()
+        .ok_or(format!("invalid response from server: {:?}", body).as_str().into())
 }
 
 #[cfg(test)]
