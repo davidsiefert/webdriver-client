@@ -18,6 +18,7 @@ pub struct Session {
     client: Client,
 }
 
+#[derive(Debug)]
 pub struct Element {
     element_id: String,
 }
@@ -81,11 +82,22 @@ impl Session {
         let response: Value = self.client.post(path.as_str()).json(&body).send()?.json()?;
         response["value"]
             .as_object()
-            .and_then(|m| m.keys().next())
+            .and_then(|m| m.values().next())
+            .and_then(|value| value.as_str())
             .map(|element_id| Element{
-                element_id: element_id.to_string()
+                element_id: element_id.to_string(),
             })
             .ok_or(format!("invalid response: {:?}", response).as_str().into())
+    }
+
+    pub fn send_keys(&self, element: Element, text: &str) -> Result<bool> {
+        let mut body: HashMap<&str, &str> = HashMap::new();
+        body.insert("text", text);
+
+        // response: {"value": {}}
+        let path = format!("http://localhost:4444/session/{}/element/{}/value", self.id, element.element_id);
+        let response: Value = self.client.post(path.as_str()).json(&body).send()?.json()?;
+        Ok(true)
     }
 }
 
@@ -105,7 +117,7 @@ mod test {
             .expect("webdriver server status check");
         assert!(status, "webdriver not ready");
 
-        let result = Session::run(|session| {
+        let result: Result<bool> = Session::run(|session| {
             session.navigate_to("https://www.google.com")?;
             let title = session.get_title()?;
 
@@ -113,7 +125,8 @@ mod test {
                 return Err(format!("incorrect page title: {}", title).as_str().into())
             }
             
-            session.find_element_by_css("[name=q]")
+            let q = session.find_element_by_css("[name=q]")?;
+            session.send_keys(q, "harlem shake")
         });
 
         assert!(result.is_ok(), "browsing failed {}", result.err().unwrap());
