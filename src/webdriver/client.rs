@@ -99,6 +99,14 @@ impl Session {
         let response: Value = self.client.post(path.as_str()).json(&body).send()?.json()?;
         Ok(true)
     }
+
+    pub fn click(&self, element: Element) -> Result<bool> {
+        let body: HashMap<&str, &str> = HashMap::new();
+
+        let path = format!("http://localhost:4444/session/{}/element/{}/click", self.id, element.element_id);
+        let response: Value = self.client.post(path.as_str()).json(&body).send()?.json()?;
+        Ok(true)
+    }
 }
 
 pub fn get_status() -> Result<bool> {
@@ -126,7 +134,10 @@ mod test {
             }
             
             let q = session.find_element_by_css("[name=q]")?;
-            session.send_keys(q, "harlem shake")
+            session.send_keys(q, "harlem shake")?;
+
+            let btn = session.find_element_by_css("[name=btnK]")?;
+            session.click(btn)
         });
 
         assert!(result.is_ok(), "browsing failed {}", result.err().unwrap());
