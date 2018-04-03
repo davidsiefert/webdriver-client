@@ -89,6 +89,28 @@ impl Session {
             })
             .ok_or(format!("invalid response: {:?}", response).as_str().into())
     }
+    
+    pub fn find_elements_by_css(&self, selector: &str) -> Result<Vec<Element>> {
+        let mut body: HashMap<&str, &str> = HashMap::new();
+        body.insert("using", "css selector");
+        body.insert("value", selector);
+        
+        let path = format!("http://localhost:4444/session/{}/elements", self.id);
+        let response: Value = self.client.post(path.as_str()).json(&body).send()?.json()?;
+        response["value"]
+            .as_array()
+            .map(|e| {
+                e.iter()
+                    .flat_map(|v| v.as_object())
+                    .flat_map(|m| m.values().next())
+                    .flat_map(|value| value.as_str())
+                    .map(|element_id| Element {
+                        element_id: element_id.to_string(),
+                    })
+                    .collect()
+            })
+            .ok_or(format!("invalid response: {:?}", response).as_str().into())
+    }
 
     pub fn send_keys(&self, element: Element, text: &str) -> Result<bool> {
         let mut body: HashMap<&str, &str> = HashMap::new();
@@ -125,7 +147,7 @@ mod test {
             .expect("webdriver server status check");
         assert!(status, "webdriver not ready");
 
-        let result: Result<bool> = Session::run(|session| {
+        let result = Session::run(|session| {
             session.navigate_to("https://www.google.com")?;
             let title = session.get_title()?;
 
@@ -137,9 +159,12 @@ mod test {
             session.send_keys(q, "harlem shake")?;
 
             let btn = session.find_element_by_css("[name=btnK]")?;
-            session.click(btn)
+            session.click(btn)?;
+
+            session.find_elements_by_css("div.g a")
         });
 
         assert!(result.is_ok(), "browsing failed {}", result.err().unwrap());
+        println!("result: {:?}", result.ok().unwrap());
     }
 }
