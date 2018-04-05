@@ -129,6 +129,28 @@ impl Session {
         let response: Value = self.client.post(path.as_str()).json(&body).send()?.json()?;
         Ok(true)
     }
+
+    pub fn find_elements_from_element_by_css(&self, element: Element, selector: &str) -> Result<Vec<Element>> {
+        let mut body: HashMap<&str, &str> = HashMap::new();
+        body.insert("using", "css selector");
+        body.insert("value", selector);
+        
+        let path = format!("http://localhost:4444/session/{}/element/{}/elements", self.id, element.element_id);
+        let response: Value = self.client.post(path.as_str()).json(&body).send()?.json()?;
+        response["value"]
+            .as_array()
+            .map(|e| {
+                e.iter()
+                    .flat_map(|v| v.as_object())
+                    .flat_map(|m| m.values().next())
+                    .flat_map(|value| value.as_str())
+                    .map(|element_id| Element {
+                        element_id: element_id.to_string(),
+                    })
+                    .collect()
+            })
+            .ok_or(format!("invalid response: {:?}", response).as_str().into())
+    }
 }
 
 pub fn get_status() -> Result<bool> {
@@ -161,7 +183,14 @@ mod test {
             let btn = session.find_element_by_css("[name=btnK]")?;
             session.click(btn)?;
 
-            session.find_elements_by_css("div.g a")
+            let gs = session.find_elements_by_css("div.g")?;
+            let mut links = Vec::new();
+            for g in gs {
+                let gas = session.find_elements_from_element_by_css(g, "a")?;
+                links.extend(gas);
+            }
+
+            Ok(links)
         });
 
         assert!(result.is_ok(), "browsing failed {}", result.err().unwrap());
