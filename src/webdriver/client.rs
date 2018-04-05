@@ -151,6 +151,14 @@ impl Session {
             })
             .ok_or(format!("invalid response: {:?}", response).as_str().into())
     }
+
+    pub fn get_element_text_by_css(&self, element: &Element) -> Result<String> {
+        let path = format!("http://localhost:4444/session/{}/element/{}/text", self.id, element.element_id);
+        let response: Value = self.client.get(path.as_str()).send()?.json()?;
+        response["value"].as_str()
+            .map(|s| s.to_string())
+            .ok_or(format!("invalid response from server: {:?}", response).as_str().into())
+    }
 }
 
 pub fn get_status() -> Result<bool> {
@@ -184,13 +192,18 @@ mod test {
             session.click(btn)?;
 
             let gs = session.find_elements_by_css("div.g")?;
-            let mut links = Vec::new();
+            let mut ls = Vec::new();
             for g in gs {
                 let gas = session.find_elements_from_element_by_css(g, "a")?;
-                links.extend(gas);
+                ls.extend(gas);
             }
 
-            Ok(links)
+            let mut ts = Vec::new();
+            for l in &ls {
+                ts.push(session.get_element_text_by_css(l)?);
+            }
+            
+            Ok(ts)
         });
 
         assert!(result.is_ok(), "browsing failed {}", result.err().unwrap());
