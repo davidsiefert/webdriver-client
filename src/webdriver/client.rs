@@ -159,6 +159,13 @@ impl Session {
             .map(|s| s.to_string())
             .ok_or(format!("invalid response from server: {:?}", response).as_str().into())
     }
+
+    pub fn get_element_attribute(&self, element: &Element, name: &str) -> Result<Option<String>> {
+        let path = format!("http://localhost:4444/session/{}/element/{}/attribute/{}", self.id, element.element_id, name);
+        let response: Value = self.client.get(path.as_str()).send()?.json()?;
+        Ok(response["value"].as_str()
+            .map(|s| s.to_string()))
+    }
 }
 
 pub fn get_status() -> Result<bool> {
@@ -193,8 +200,14 @@ mod test {
 
             let gs = session.find_elements_by_css("div.g")?;
             let mut ls = Vec::new();
+            let mut hs = Vec::new();
             for g in gs {
-                let gas = session.find_elements_from_element_by_css(g, "a")?;
+                let gas = session.find_elements_from_element_by_css(g, "a[href^=\"http\"]")?;
+                for ga in &gas {
+                    if let Some(href) = session.get_element_attribute(ga, "href")? {
+                        hs.push(href);
+                    }
+                }
                 ls.extend(gas);
             }
 
@@ -203,7 +216,7 @@ mod test {
                 ts.push(session.get_element_text_by_css(l)?);
             }
             
-            Ok(ts)
+            Ok((ts,hs))
         });
 
         assert!(result.is_ok(), "browsing failed {}", result.err().unwrap());
