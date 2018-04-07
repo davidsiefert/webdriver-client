@@ -112,7 +112,7 @@ impl Session {
             .ok_or(format!("invalid response: {:?}", response).as_str().into())
     }
 
-    pub fn send_keys(&self, element: Element, text: &str) -> Result<bool> {
+    pub fn send_keys(&self, element: &Element, text: &str) -> Result<bool> {
         let mut body: HashMap<&str, &str> = HashMap::new();
         body.insert("text", text);
 
@@ -122,7 +122,7 @@ impl Session {
         Ok(true)
     }
 
-    pub fn click(&self, element: Element) -> Result<bool> {
+    pub fn click(&self, element: &Element) -> Result<bool> {
         let body: HashMap<&str, &str> = HashMap::new();
 
         let path = format!("http://localhost:4444/session/{}/element/{}/click", self.id, element.element_id);
@@ -130,7 +130,7 @@ impl Session {
         Ok(true)
     }
 
-    pub fn find_elements_from_element_by_css(&self, element: Element, selector: &str) -> Result<Vec<Element>> {
+    pub fn find_elements_from_element_by_css(&self, element: &Element, selector: &str) -> Result<Vec<Element>> {
         let mut body: HashMap<&str, &str> = HashMap::new();
         body.insert("using", "css selector");
         body.insert("value", selector);
@@ -193,15 +193,15 @@ mod test {
             }
             
             let q = session.find_element_by_css("[name=q]")?;
-            session.send_keys(q, "harlem shake")?;
+            session.send_keys(&q, "harlem shake")?;
 
             let btn = session.find_element_by_css("[name=btnK]")?;
-            session.click(btn)?;
+            session.click(&btn)?;
 
             let gs = session.find_elements_by_css("div.g")?;
             let mut ls = Vec::new();
             let mut hs = Vec::new();
-            for g in gs {
+            for g in &gs {
                 let gas = session.find_elements_from_element_by_css(g, "a[href^=\"http\"]")?;
                 for ga in &gas {
                     if let Some(href) = session.get_element_attribute(ga, "href")? {
